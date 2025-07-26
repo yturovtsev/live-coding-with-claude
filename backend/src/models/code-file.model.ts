@@ -1,11 +1,27 @@
 import { Table, Column, Model, DataType, PrimaryKey } from 'sequelize-typescript';
 import { v4 as uuidv4 } from 'uuid';
 
+interface CodeFileAttributes {
+  id: string;
+  code: string;
+  language: string;
+  createdAt: Date;
+  expiresAt: Date;
+}
+
+interface CodeFileCreationAttributes {
+  id?: string;
+  code?: string;
+  language?: string;
+  createdAt?: Date;
+  expiresAt?: Date;
+}
+
 @Table({
   tableName: 'code_files',
   timestamps: false,
 })
-export class CodeFile extends Model {
+export class CodeFile extends Model<CodeFileAttributes, CodeFileCreationAttributes> {
   @PrimaryKey
   @Column({
     type: DataType.UUID,

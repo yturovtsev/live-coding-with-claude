@@ -3,7 +3,7 @@ import axios from 'axios';
 import { CodeFile, CodeState, User, ServerCursor } from '../types';
 import { transformMultipleCursors, calculateTextOperation, TextOperation } from '../utils/cursorTransform';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
 export const createCodeFile = createAsyncThunk(
   'code/createCodeFile',
@@ -187,9 +187,12 @@ const codeSlice = createSlice({
       state.error = null;
     },
     resetRoomState: (state) => {
+      state.currentFile = null;
       state.isInRoom = false;
       state.users = [];
+      state.currentUserId = null;
       state.error = null;
+      state.previousCode = '';
     },
   },
   extraReducers: (builder) => {

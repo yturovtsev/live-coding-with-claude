@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { useAppDispatch, useAppSelector } from '../hooks/redux';
-import { updateCode, updateUserCursor } from '../store/codeSlice';
+import { updateCode, updateUserCursor, resetRoomState } from '../store/codeSlice';
 import { useSocket } from '../hooks/useSocket';
 import { debounce } from '../utils/debounce';
 import { UserCursor } from './UserCursor';
@@ -30,8 +31,9 @@ const CHAR_WIDTH = 8.4; // Примерная ширина моноширинн�
 
 export const CodeEditor: React.FC<CodeEditorProps> = ({ roomId }) => {
   const dispatch = useAppDispatch();
+  const navigate = useNavigate();
   const { currentFile, users, isInRoom, currentUserId } = useAppSelector((state) => state.code);
-  const { sendCodeUpdate, sendLanguageChange, sendCursorUpdate } = useSocket();
+  const { sendCodeUpdate, sendLanguageChange, sendCursorUpdate, leaveRoom } = useSocket();
 
   const [code, setCode] = useState<string>(currentFile?.code || '');
   const [language, setLanguage] = useState<string>(currentFile?.language || 'typescript');
@@ -164,6 +166,15 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ roomId }) => {
     return { line, column };
   };
 
+  const handleLeaveRoom = () => {
+    leaveRoom();
+    dispatch(resetRoomState());
+    // Очищаем сохраненную сессию чтобы заставить пользователя ввести никнейм заново
+    localStorage.removeItem('userSession');
+    localStorage.removeItem('userNickname');
+    navigate('/welcome');
+  };
+
   if (!isInRoom) {
     return (
       <div className="code-editor">
@@ -180,7 +191,6 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ roomId }) => {
     <div className="code-editor">
       <div className="editor-header">
         <div className="language-selector">
-          <label htmlFor="language">Language: </label>
           <select
             id="language"
             value={language}
@@ -196,8 +206,17 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ roomId }) => {
         </div>
 
         <div className="room-info">
-          <span>Room: {roomId}</span>
-          <span>Users: {users.length}</span>
+          <span>Комната: {roomId}</span>
+        </div>
+
+        <div className="header-actions">
+          <button 
+            onClick={handleLeaveRoom}
+            className="leave-room-btn"
+            title="Выйти из комнаты"
+          >
+            Выход
+          </button>
         </div>
       </div>
 
@@ -212,7 +231,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ roomId }) => {
           onClick={handleCursorChange}
           onFocus={handleCursorChange}
           className="code-textarea"
-          placeholder="Start typing your code here..."
+          placeholder="Начните писать код..."
           spellCheck={false}
         />
 
@@ -260,7 +279,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ roomId }) => {
       </div>
 
       <div className="users-list">
-        <h4>Active Users ({users.length})</h4>
+        <h4>Пользователи ({users.length})</h4>
         <ul>
           {users.map((user) => {
             const cursorCoords = user.cursorPosition !== undefined

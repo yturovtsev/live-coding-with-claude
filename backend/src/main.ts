@@ -11,16 +11,21 @@ if (!globalThis.crypto) {
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     cors: {
-      origin: process.env.NODE_ENV === 'production' ? 
-        ['http://localhost', 'http://localhost:80'] : 
-        ['http://localhost:3001', 'http://localhost', 'http://localhost:80'],
+      origin: process.env.ALLOWED_ORIGINS?.split(',') ||
+             (process.env.NODE_ENV === 'production' ?
+              process.env.FRONTEND_URL :
+              ['http://localhost:3001', 'http://127.0.0.1:3001']),
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization'],
     },
   });
 
-  const port = process.env.PORT || 3000;
+  const port = process.env.PORT;
+  console.log(`🚀 Server starting on port: ${port}`);
+  console.log(`📦 NODE_ENV: ${process.env.NODE_ENV}`);
+  console.log(`🌐 CORS origins: ${process.env.ALLOWED_ORIGINS || 'default'}`);
+
   await app.listen(port);
 }
 bootstrap();

@@ -32,6 +32,9 @@ services:
       - DB_PASSWORD=password
       - DB_NAME=livecoding
       - NODE_ENV=development
+      - PORT=3000
+      - ALLOWED_ORIGINS=http://localhost:3001,http://127.0.0.1:3001
+      - FRONTEND_URL=http://localhost:3001
     depends_on:
       postgres:
         condition: service_healthy

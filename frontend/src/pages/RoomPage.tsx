@@ -58,10 +58,19 @@ export const RoomPage: React.FC = () => {
 
   // Проверяем сессию при загрузке компонента
   useEffect(() => {
-    const savedNickname = getSession();
-    if (savedNickname) {
-      setNickname(savedNickname);
-      updateSessionTimestamp();
+    // Сначала проверяем никнейм из WelcomePage
+    const welcomeNickname = localStorage.getItem('userNickname');
+    if (welcomeNickname) {
+      setNickname(welcomeNickname);
+      // Удаляем из localStorage, чтобы не переиспользовать
+      localStorage.removeItem('userNickname');
+    } else {
+      // Если нет никнейма из WelcomePage, проверяем сессию
+      const savedNickname = getSession();
+      if (savedNickname) {
+        setNickname(savedNickname);
+        updateSessionTimestamp();
+      }
     }
     setSessionLoaded(true);
   }, []);
@@ -131,7 +140,7 @@ export const RoomPage: React.FC = () => {
             <button onClick={handleClearError} className="retry-button">
               Try Again
             </button>
-            <button onClick={() => navigate('/')} className="home-button">
+            <button onClick={() => navigate('/welcome')} className="home-button">
               Create New Room
             </button>
           </div>
@@ -146,7 +155,7 @@ export const RoomPage: React.FC = () => {
         <div className="error">
           <h2>Room not found</h2>
           <p>This room may have expired or doesn't exist.</p>
-          <button onClick={() => navigate('/')} className="home-button">
+          <button onClick={() => navigate('/welcome')} className="home-button">
             Create New Room
           </button>
         </div>

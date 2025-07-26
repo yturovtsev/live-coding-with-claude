@@ -19,12 +19,14 @@ interface ConnectedUser {
 
 @WebSocketGateway({
   cors: {
-    origin: process.env.NODE_ENV === 'production' ?
-      ['http://localhost', 'http://localhost:80'] :
-      ['http://localhost:3001', 'http://localhost', 'http://localhost:80'],
+    origin: process.env.ALLOWED_ORIGINS?.split(',') ||
+           (process.env.NODE_ENV === 'production' ?
+            process.env.FRONTEND_URL :
+            ['http://localhost:3000', 'http://127.0.0.1:3000']),
     credentials: true,
     methods: ['GET', 'POST'],
   },
+  namespace: '/ws'
 })
 export class CodeGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
@@ -32,6 +34,7 @@ export class CodeGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   private connectedUsers = new Map<string, ConnectedUser>();
   private roomUsers = new Map<string, Set<string>>();
+  private rateLimiter = new Map<string, number>();
 
   constructor(private codeService: CodeService) {}
 
@@ -125,6 +128,17 @@ export class CodeGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { roomId: string; code: string; language?: string },
   ) {
+    // Rate limiting: максимум 10 обновлений в секунду
+    // const now = Date.now();
+    // const lastUpdate = this.rateLimiter.get(client.id) || 0;
+
+    // if (now - lastUpdate < 100) {
+    //   client.emit('error', { message: 'Rate limit exceeded' });
+    //   return;
+    // }
+
+    // this.rateLimiter.set(client.id, now);
+
     const { roomId, code, language } = data;
     const user = this.connectedUsers.get(client.id);
 
@@ -133,11 +147,17 @@ export class CodeGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return;
     }
 
+    // Валидация данных
+    if (typeof code !== 'string' || code.length > 1000000) { // Максимум 1MB
+      client.emit('error', { message: 'Invalid code data' });
+      return;
+    }
+
     try {
       // Получаем текущий код для трансформации курсоров
       const oldCodeFile = await this.codeService.getCodeFile(roomId);
       const oldCode = oldCodeFile?.code || '';
-      
+
       await this.codeService.updateCodeFile(roomId, code, language);
 
       // Получаем позиции курсоров всех пользователей в комнате
@@ -211,9 +231,15 @@ export class CodeGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return;
     }
 
+    // Валидация позиции курсора
+    if (typeof position !== 'number' || position < 0 || position > 1000000) {
+      client.emit('error', { message: 'Invalid cursor position' });
+      return;
+    }
+
     // Обновляем позицию курсора пользователя на сервере
     user.cursorPosition = position;
-    
+
     // Отправляем обновление позиции курсора всем остальным пользователям в комнате
     client.to(roomId).emit('cursor_updated', {
       userId: client.id,

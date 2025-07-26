@@ -5,7 +5,7 @@ import { setConnected, setInRoom, setUsers, setCurrentUserId, updateUserCursor, 
 import { User, ServerCursor } from '../types';
 import { calculateTextOperation } from '../utils/cursorTransform';
 
-const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'http://localhost:3000';
+const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'http://localhost:3001';
 
 // Глобальный socket instance
 let globalSocket: Socket | null = null;
@@ -24,7 +24,10 @@ export const useSocket = () => {
 
     // Используем глобальный socket instance
     if (!globalSocket && !isInitializedRef.current) {
-      globalSocket = io(SOCKET_URL);
+      globalSocket = io(`${SOCKET_URL}/ws`, {
+        transports: ['websocket'],
+        upgrade: false
+      });
       isInitializedRef.current = true;
 
       // Устанавливаем обработчики событий только один раз
