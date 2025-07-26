@@ -1,6 +1,6 @@
 /**
- * Tests for editing user cursor position synchronization
- * Reproduces and fixes the bug where editing user's cursor jumps to wrong position
+ * Тесты синхронизации позиции курсора редактирующего пользователя
+ * Воспроизводит и исправляет баг, когда курсор редактирующего пользователя прыгает в неправильную позицию
  */
 
 import { 
@@ -11,12 +11,12 @@ import {
 
 describe('Editing user cursor position synchronization', () => {
   
-  // Helper function to simulate real cursor update behavior
+  // Функция для симуляции реального поведения обновления курсора
   const simulateRealUserEdit = (
     oldText: string,
     newText: string,
     editingUserId: string,
-    editingUserCursorPos: number, // Where editing user's cursor actually is
+    editingUserCursorPos: number,
     allUsers: Array<{ userId: string; position: number; nickname: string }>
   ) => {
     const operation = calculateTextOperation(oldText, newText, editingUserCursorPos);
@@ -28,7 +28,7 @@ describe('Editing user cursor position synchronization', () => {
       };
     }
     
-    // Transform other users' cursors (not the editing user)
+    // Трансформируем курсоры других пользователей (не редактирующего)
     const otherUsers = allUsers.filter(user => user.userId !== editingUserId);
     const transformedOtherCursors = transformMultipleCursors(
       otherUsers.map(user => ({ userId: user.userId, position: user.position })),
@@ -37,27 +37,22 @@ describe('Editing user cursor position synchronization', () => {
       newText
     );
     
-    // Find the editing user
     const editingUser = allUsers.find(user => user.userId === editingUserId);
     
-    // The key issue: editing user's cursor position should be preserved correctly
-    // Current position after the edit (this is what should be sent to other users)
+    // Ключевая проблема: позиция курсора редактирующего пользователя должна сохраняться корректно
     let editingUserNewPosition = editingUserCursorPos;
     
-    // For insertions, cursor typically moves forward by insertion length
+    // При вставке курсор обычно сдвигается вперед на длину вставки
     if (operation.type === 'insert') {
       editingUserNewPosition = editingUserCursorPos + operation.length;
     }
-    // For deletions, cursor typically stays at deletion start
-    // (this depends on where exactly the deletion happened relative to cursor)
+    // При удалении курсор обычно остается в начале удаления
     
     const updatedCursors = [
-      // Editing user with their actual new position
       ...(editingUser ? [{
         ...editingUser,
         position: editingUserNewPosition
       }] : []),
-      // Other users with transformed positions
       ...transformedOtherCursors.map(tc => {
         const originalUser = allUsers.find(u => u.userId === tc.userId);
         return {
@@ -80,20 +75,17 @@ describe('Editing user cursor position synchronization', () => {
     
     test('REPRODUCE BUG: Cursor position race condition during editing', () => {
       const initialText = 'line1\nline2\nline3';
-      const userLeft = { userId: 'left', position: 8, nickname: 'User Left' }; // Middle of line2 (after 'ne')
-      const userRight = { userId: 'right', position: 3, nickname: 'User Right' }; // End of line1
+      const userLeft = { userId: 'left', position: 8, nickname: 'User Left' };
+      const userRight = { userId: 'right', position: 3, nickname: 'User Right' };
       
-      // User Left types 'X' at their position
       const newText = 'line1\nliXne2\nline3';
       
-      // SIMULATE REAL BUG: The problem is not in operation calculation but in how cursors are handled
+      // СИМУЛЯЦИЯ БАГА: проблема не в вычислении операций, а в обработке курсоров
       // 1. Local code change triggers cursor transformation for other users
       const operation = calculateTextOperation(initialText, newText, 0);
       
-      console.log('📍 STEP 1: Local code change operation:', operation);
       
-      // 2. Transform other users' cursors (this works correctly)
-      const otherUsers = [userRight]; // Only other users
+      const otherUsers = [userRight];
       const transformedOtherCursors = transformMultipleCursors(
         otherUsers.map(user => ({ userId: user.userId, position: user.position })),
         operation!,
@@ -101,61 +93,40 @@ describe('Editing user cursor position synchronization', () => {
         newText
       );
       
-      console.log('📍 STEP 2: Other users cursors transformed:', transformedOtherCursors);
       
-      // 3. BUT the editing user's cursor position is also sent separately via sendCursorUpdate
-      // This creates a race condition where:
-      // - First: Code update with transformed cursors (editing user keeps old position in UI state)
-      // - Then: Separate cursor update arrives for editing user (but may be stale)
+      // СИМУЛЯЦИЯ РЕАЛЬНОГО БАГА: состояние гонки с обновлениями курсора
+      const editingUserOldPosition = 8;
+      const editingUserNewPosition = 9;
       
-      // SIMULATE THE ACTUAL BUG: editing user's cursor is not updated correctly in local state
-      // The issue is that the editing user's cursor position in the Redux state is not updated
-      // when they type locally, so when other users see the code change, they also see
-      // the editing user's cursor at the OLD position, which then gets transformed incorrectly
-      
-      // Let's simulate what happens in the Redux state:
-      const editingUserOldPosition = 8; // This stays in Redux state
-      const editingUserNewPosition = 9; // This should be the new position after typing 'X'
-      
-      // When other users receive the code update, they see:
-      // - The new code: 'line1\nliXne2\nline3'
-      // - The editing user's cursor still at position 8 (old position)
-      // - Then this old position gets transformed by the operation
+      // Когда другие пользователи получают обновление кода, они видят старую позицию курсора
       
       const editingUserTransformedPosition = transformCursorPosition(
-        editingUserOldPosition, // OLD position still in Redux
+        editingUserOldPosition,
         operation!,
         initialText,
         newText
       );
       
-      console.log('🐛 BUG: Editing user old position transformed:', editingUserTransformedPosition);
       
-      // This transformation will move the cursor to position 9, but then
-      // a separate cursor update might arrive with a different position,
-      // causing the "jumping around" effect described by the user
+      // Эта трансформация может вызвать эффект "прыгающего" курсора
       
-      expect(editingUserTransformedPosition.position).toBe(9); // Cursor moves forward
+      expect(editingUserTransformedPosition.position).toBe(9);
       
-      // The fix is to ensure the editing user's cursor position is updated correctly
-      // in local state immediately when they type, so it doesn't get incorrectly transformed
+      // Исправление: немедленно обновлять позицию курсора редактирующего пользователя в локальном состоянии
     });
 
     test('FIX VERIFICATION: Editing user cursor stays stable after fix', () => {
       const initialText = 'line1\nline2\nline3';
-      const userLeft = { userId: 'left', position: 8, nickname: 'User Left' }; // Middle of line2
-      const userRight = { userId: 'right', position: 3, nickname: 'User Right' }; // End of line1
+      const userLeft = { userId: 'left', position: 8, nickname: 'User Left' };
+      const userRight = { userId: 'right', position: 3, nickname: 'User Right' };
       
-      // User Left types 'X' at their position
       const newText = 'line1\nliXne2\nline3';
       
-      // AFTER FIX: The editing user's cursor position should be updated immediately
-      // and excluded from transformation
+      // ПОСЛЕ ИСПРАВЛЕНИЯ: позиция курсора редактирующего пользователя должна обновляться немедленно
       
       const operation = calculateTextOperation(initialText, newText, 0);
       
-      // Transform only OTHER users' cursors (not the editing user)
-      const otherUsers = [userRight]; // Exclude editing user (userLeft)
+      const otherUsers = [userRight];
       const transformedOtherCursors = transformMultipleCursors(
         otherUsers.map(user => ({ userId: user.userId, position: user.position })),
         operation!,
@@ -163,10 +134,8 @@ describe('Editing user cursor position synchronization', () => {
         newText
       );
       
-      // The editing user's cursor position should be set directly to the new position
-      const editingUserNewPosition = 9; // After typing 'X' at position 8
+      const editingUserNewPosition = 9;
       
-      // Final cursor state should be:
       const finalCursors = [
         // Editing user with their new correct position (not transformed)
         { userId: 'left', position: editingUserNewPosition, nickname: 'User Left' },
@@ -179,29 +148,24 @@ describe('Editing user cursor position synchronization', () => {
         }))
       ];
       
-      console.log('✅ FIXED: Final cursor positions:', finalCursors);
       
-      // Verify editing user's cursor is at correct position (line2, after 'X')
       const editingUserFinal = finalCursors.find(u => u.userId === 'left');
       expect(editingUserFinal?.position).toBe(9);
       
-      // Verify position is on line2
       const textBeforeCursor = newText.substring(0, 9);
       const lines = textBeforeCursor.split('\n');
-      expect(lines.length - 1).toBe(1); // On line 1 (0-indexed), which is line2
-      expect(lines[1]).toBe('liX'); // After the 'X' they just typed
+      expect(lines.length - 1).toBe(1);
+      expect(lines[1]).toBe('liX');
       
-      // Verify other user's cursor was transformed correctly
       const otherUserFinal = finalCursors.find(u => u.userId === 'right');
-      expect(otherUserFinal?.position).toBe(3); // Unchanged, insertion was after their cursor
+      expect(otherUserFinal?.position).toBe(3);
     });
 
     test('User Left types at beginning of line - cursor should stay on same line', () => {
       const initialText = 'line1\nline2\nline3';
-      const userLeft = { userId: 'left', position: 6, nickname: 'User Left' }; // Beginning of line2
-      const userRight = { userId: 'right', position: 12, nickname: 'User Right' }; // Beginning of line3
+      const userLeft = { userId: 'left', position: 6, nickname: 'User Left' };
+      const userRight = { userId: 'right', position: 12, nickname: 'User Right' };
       
-      // User Left types 'START:' at beginning of line2
       const newText = 'line1\nSTART:line2\nline3';
       
       const result = simulateRealUserEdit(initialText, newText, 'left', 6, [userLeft, userRight]);
@@ -253,8 +217,8 @@ describe('Editing user cursor position synchronization', () => {
       // Verify this position is at end of line2
       const textBeforeCursor = newText.substring(0, 12);
       const lines = textBeforeCursor.split('\n');
-      expect(lines.length - 1).toBe(2); // Real result - cursor is at line3 start
-      expect(lines[2]).toBe(''); // At the beginning of line3
+      expect(lines.length - 1).toBe(2);
+      expect(lines[2]).toBe('');
     });
 
     test('User Left adds newline - cursor should be on new line, not wrong line', () => {
@@ -284,8 +248,8 @@ describe('Editing user cursor position synchronization', () => {
       // Verify this position is on the new empty line (line3, 0-indexed line 2)
       const textBeforeCursor = newText.substring(0, 13);
       const lines = textBeforeCursor.split('\n');
-      expect(lines.length - 1).toBe(3); // Real result - cursor is on next line after newline
-      expect(lines[3]).toBe(''); // Real position after newline
+      expect(lines.length - 1).toBe(3);
+      expect(lines[3]).toBe('');
     });
   });
 
@@ -315,7 +279,7 @@ describe('Editing user cursor position synchronization', () => {
       const userLeftAfter = result.updatedCursors.find(u => u.userId === 'left');
       const cursorPos = userLeftAfter?.position || 0;
       const textBeforeCursor = newText.substring(0, cursorPos);
-      expect(textBeforeCursor).toBe('function newFunct'); // Real result from algorithm
+      expect(textBeforeCursor).toBe('function newFunct');
     });
 
     test('Multiple rapid edits preserve cursor line consistency', () => {
@@ -333,7 +297,7 @@ describe('Editing user cursor position synchronization', () => {
       // Verify still on line2
       let textBeforeCursor = newText.substring(0, 9);
       let lines = textBeforeCursor.split('\n');
-      expect(lines.length - 1).toBe(1); // Line2
+      expect(lines.length - 1).toBe(1);
       
       // Update for next edit
       currentText = newText;
@@ -349,8 +313,8 @@ describe('Editing user cursor position synchronization', () => {
       // Verify still on line2
       textBeforeCursor = newText.substring(0, 10);
       lines = textBeforeCursor.split('\n');
-      expect(lines.length - 1).toBe(1); // Still on line2
-      expect(lines[1]).toBe('liAB'); // Content before cursor on line2
+      expect(lines.length - 1).toBe(1);
+      expect(lines[1]).toBe('liAB');
     });
   });
 
@@ -382,8 +346,8 @@ describe('Editing user cursor position synchronization', () => {
       // Verify cursor is still on line1
       const textBeforeCursor = newText.substring(0, 6);
       const lines = textBeforeCursor.split('\n');
-      expect(lines.length - 1).toBe(0); // Should be on line 0 (line1)
-      expect(lines[0]).toBe('line1!'); // Should be at end of line1
+      expect(lines.length - 1).toBe(0);
+      expect(lines[0]).toBe('line1!');
     });
 
     test('Empty line editing - cursor should stay on empty line', () => {
@@ -412,8 +376,8 @@ describe('Editing user cursor position synchronization', () => {
       // Verify cursor is on line2 after 'content'
       const textBeforeCursor = newText.substring(0, 13);
       const lines = textBeforeCursor.split('\n');
-      expect(lines.length - 1).toBe(1); // Should be on line 1 (line2)
-      expect(lines[1]).toBe('content'); // Should be after 'content'
+      expect(lines.length - 1).toBe(1);
+      expect(lines[1]).toBe('content');
     });
   });
 });

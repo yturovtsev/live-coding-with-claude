@@ -36,23 +36,20 @@ export class CodeGateway implements OnGatewayConnection, OnGatewayDisconnect {
   constructor(private codeService: CodeService) {}
 
   handleConnection(client: Socket) {
-    console.log(`Client connected: ${client.id}. Total connected users: ${this.connectedUsers.size}`);
-    
-    // Логирование всех входящих событий для отладки
-    client.onAny((eventName, ...args) => {
-      console.log(`Received event: ${eventName}`, args);
-    });
+    // Логирование событий для отладки в режиме разработки
+    if (process.env.NODE_ENV === 'development') {
+      client.onAny((eventName, ...args) => {
+        console.log(`Received event: ${eventName}`, args);
+      });
+    }
   }
 
   handleDisconnect(client: Socket) {
     const user = this.connectedUsers.get(client.id);
-    console.log(`Client disconnecting: ${client.id}, user exists: ${!!user}`);
     if (user) {
-      console.log(`User ${user.nickname} in room ${user.roomId} is disconnecting`);
       this.leaveRoom(client, user.roomId);
       this.connectedUsers.delete(client.id);
     }
-    console.log(`Client disconnected: ${client.id}. Remaining connected users: ${this.connectedUsers.size}`);
   }
 
   @SubscribeMessage('join_room')
@@ -61,17 +58,13 @@ export class CodeGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() data: { roomId: string; nickname?: string },
   ) {
     const { roomId, nickname } = data;
-    console.log(`Processing join_room request: user ${client.id}, room ${roomId}, nickname ${nickname}`);
-
     const codeFile = await this.codeService.getCodeFile(roomId);
     if (!codeFile) {
-      console.log(`Room not found: ${roomId}`);
       client.emit('error', { message: 'Room not found' });
       return;
     }
 
     if (new Date() > codeFile.expiresAt) {
-      console.log(`Room expired: ${roomId}`);
       client.emit('error', { message: 'Room has expired' });
       return;
     }
@@ -106,21 +99,17 @@ export class CodeGateway implements OnGatewayConnection, OnGatewayDisconnect {
       .map(userId => this.connectedUsers.get(userId))
       .filter(Boolean);
 
-    // Отправляем обновленный список пользователей всем в комнате (включая нового пользователя)
+    // Отправляем обновленный список пользователей всем в комнате
     const currentUsers = roomUsersList.map(u => ({ id: u!.id, nickname: u!.nickname }));
     this.server.to(roomId).emit('user_joined', {
       user: { id: user.id, nickname: user.nickname },
       users: currentUsers,
     });
 
-    // Также отправляем новому пользователю текущий список пользователей
     client.emit('user_joined', {
       user: { id: user.id, nickname: user.nickname },
       users: currentUsers,
     });
-
-    console.log(`User ${user.nickname} joined room ${roomId}. Total users: ${currentUsers.length}`,
-                `Users: ${currentUsers.map(u => u.nickname).join(', ')}`);
   }
 
   @SubscribeMessage('leave_room')
@@ -137,36 +126,21 @@ export class CodeGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() data: { roomId: string; code: string; language?: string },
   ) {
     const { roomId, code, language } = data;
-    console.log(`=== CODE UPDATE DEBUG ===`);
-    console.log(`Client ID: ${client.id}`);
-    console.log(`Room ID: ${roomId}`);
-    console.log(`Total connected users: ${this.connectedUsers.size}`);
-    console.log(`All connected user IDs:`, Array.from(this.connectedUsers.keys()));
-    
     const user = this.connectedUsers.get(client.id);
-    console.log(`User found for ${client.id}:`, user ? `${user.nickname} in room ${user.roomId}` : 'undefined');
 
     if (!user || user.roomId !== roomId) {
-      console.error('handleCodeUpdate ERROR', { 
-        user, 
-        clientId: client.id,
-        requestedRoom: roomId,
-        userRoom: user?.roomId,
-        totalUsers: this.connectedUsers.size
-      });
       client.emit('error', { message: 'Not in room' });
       return;
     }
 
     try {
-      // Get current code before update for cursor transformation
+      // Получаем текущий код для трансформации курсоров
       const oldCodeFile = await this.codeService.getCodeFile(roomId);
       const oldCode = oldCodeFile?.code || '';
       
       await this.codeService.updateCodeFile(roomId, code, language);
-      console.log(`Code updated in room ${roomId} by user ${user.nickname}`);
 
-      // Get all users in the room with their cursor positions
+      // Получаем позиции курсоров всех пользователей в комнате
       const roomUsersSet = this.roomUsers.get(roomId);
       const allCursors = roomUsersSet ? Array.from(roomUsersSet)
         .map(userId => {
@@ -179,16 +153,14 @@ export class CodeGateway implements OnGatewayConnection, OnGatewayDisconnect {
         })
         .filter(Boolean) : [];
 
-      console.log(`Sending code update with cursors:`, allCursors);
-
-      // Отправляем обновление всем ДРУГИМ пользователям в комнате (не тому, кто отправил)
+      // Отправляем обновление всем пользователям в комнате кроме отправителя
       client.to(roomId).emit('code_updated', {
         code,
         language,
         userId: client.id,
         userNickname: user.nickname,
-        oldCode, // Add old code for transformation
-        allCursors // Add all cursor positions
+        oldCode,
+        allCursors
       });
     } catch (error) {
       console.error('Failed to update code:', error);
@@ -232,25 +204,17 @@ export class CodeGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() data: { roomId: string; position: number },
   ) {
     const { roomId, position } = data;
-    console.log(`=== CURSOR UPDATE DEBUG ===`);
-    console.log(`Client ID: ${client.id}`);
-    console.log(`Room ID: ${roomId}`);
-    console.log(`Position: ${position}`);
-    
     const user = this.connectedUsers.get(client.id);
-    console.log(`User found:`, user ? `${user.nickname} in room ${user.roomId}` : 'undefined');
 
     if (!user || user.roomId !== roomId) {
-      console.log(`Cursor update failed: User not in room`);
       client.emit('error', { message: 'Not in room' });
       return;
     }
 
-    // Update user's cursor position on server
+    // Обновляем позицию курсора пользователя на сервере
     user.cursorPosition = position;
     
-    console.log(`Sending cursor update to room ${roomId} from user ${user.nickname}`);
-    // Отправляем обновление позиции курсора всем ДРУГИМ пользователям в комнате
+    // Отправляем обновление позиции курсора всем остальным пользователям в комнате
     client.to(roomId).emit('cursor_updated', {
       userId: client.id,
       position,
@@ -277,8 +241,6 @@ export class CodeGateway implements OnGatewayConnection, OnGatewayDisconnect {
           users: remainingUsersList,
         });
 
-        console.log(`User ${user.nickname} left room ${roomId}. Remaining users: ${remainingUsersList.length}`,
-                    `Users: ${remainingUsersList.map(u => u.nickname).join(', ')}`);
       }
 
       if (roomUsersSet.size === 0) {

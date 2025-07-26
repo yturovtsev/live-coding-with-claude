@@ -21,7 +21,7 @@ export class CodeFile extends Model {
 
   @Column({
     type: DataType.STRING(32),
-    defaultValue: 'javascript',
+    defaultValue: 'typescript',
   })
   language: string;
 
@@ -33,7 +33,7 @@ export class CodeFile extends Model {
 
   @Column({
     type: DataType.DATE,
-    defaultValue: () => new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours from now
+    defaultValue: () => new Date(Date.now() + 24 * 60 * 60 * 1000), // Срок действия 24 часа
   })
   expiresAt: Date;
 }

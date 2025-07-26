@@ -14,7 +14,7 @@ export class CodeService {
     return this.codeFileModel.create({
       id: uuidv4(),
       code: '',
-      language: 'javascript',
+      language: 'typescript',
     });
   }
 

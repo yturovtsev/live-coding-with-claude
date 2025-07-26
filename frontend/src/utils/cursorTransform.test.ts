@@ -1,23 +1,22 @@
 /**
- * Comprehensive tests for cursor transformation logic
- * Tests all corner cases and edge scenarios
+ * Тесты логики трансформации курсоров
  */
 
-import { 
-  transformCursorPosition, 
-  calculateTextOperation, 
+import {
+  transformCursorPosition,
+  calculateTextOperation,
   transformMultipleCursors,
-  TextOperation 
+  TextOperation
 } from './cursorTransform';
 
 describe('cursorTransform', () => {
-  
+
   describe('calculateTextOperation', () => {
     test('detects simple insertion', () => {
       const oldText = 'hello world';
       const newText = 'hello beautiful world';
       const operation = calculateTextOperation(oldText, newText, 6);
-      
+
       expect(operation).toEqual({
         type: 'insert',
         position: 6,
@@ -30,7 +29,7 @@ describe('cursorTransform', () => {
       const oldText = 'hello beautiful world';
       const newText = 'hello world';
       const operation = calculateTextOperation(oldText, newText, 6);
-      
+
       expect(operation).toEqual({
         type: 'delete',
         position: 6,
@@ -42,7 +41,7 @@ describe('cursorTransform', () => {
       const oldText = 'hello world';
       const newText = 'hello world';
       const operation = calculateTextOperation(oldText, newText, 0);
-      
+
       expect(operation).toBeNull();
     });
 
@@ -50,7 +49,7 @@ describe('cursorTransform', () => {
       const oldText = 'world';
       const newText = 'hello world';
       const operation = calculateTextOperation(oldText, newText, 0);
-      
+
       expect(operation).toEqual({
         type: 'insert',
         position: 0,
@@ -63,7 +62,7 @@ describe('cursorTransform', () => {
       const oldText = 'hello';
       const newText = 'hello world';
       const operation = calculateTextOperation(oldText, newText, 5);
-      
+
       expect(operation).toEqual({
         type: 'insert',
         position: 5,
@@ -76,7 +75,7 @@ describe('cursorTransform', () => {
       const oldText = 'line1line2';
       const newText = 'line1\nline2';
       const operation = calculateTextOperation(oldText, newText, 5);
-      
+
       expect(operation).toEqual({
         type: 'insert',
         position: 5,
@@ -89,11 +88,11 @@ describe('cursorTransform', () => {
       const oldText = 'hello world';
       const newText = 'hello beautiful world';
       const operation = calculateTextOperation(oldText, newText, 6);
-      
+
       expect(operation).toEqual({
         type: 'insert',
         position: 6,
-        length: 10, // net change: 'beautiful ' (10) - '' (0) = 10
+        length: 10,
         content: 'beautiful '
       });
     });
@@ -102,11 +101,11 @@ describe('cursorTransform', () => {
       const oldText = 'hello beautiful world';
       const newText = 'hello nice world';
       const operation = calculateTextOperation(oldText, newText, 6);
-      
+
       expect(operation).toEqual({
         type: 'delete',
         position: 6,
-        length: 5 // net change: 'beautiful' (9) - 'nice' (4) = 5
+        length: 5
       });
     });
 
@@ -114,20 +113,20 @@ describe('cursorTransform', () => {
       const oldText = 'hello world';
       const newText = 'hello earth';
       const operation = calculateTextOperation(oldText, newText, 6);
-      
-      expect(operation).toBeNull(); // Same length replacement doesn't need cursor transformation
+
+      expect(operation).toBeNull();
     });
 
     test('detects complex replacement with multiple changes', () => {
       const oldText = 'function test() { return true; }';
       const newText = 'function myNewFunction() { return false; }';
       const operation = calculateTextOperation(oldText, newText, 9);
-      
-      // This should detect the net change from the first differing position
+
+      // Определяем чистое изменение от первой отличающейся позиции
       expect(operation).toEqual({
         type: 'insert',
         position: 9,
-        length: 10, // net positive change (actual calculated difference)
+        length: 10,
         content: 'myNewFunction() { return fals'
       });
     });
@@ -136,11 +135,11 @@ describe('cursorTransform', () => {
       const oldText = 'hello world';
       const newText = 'hi world';
       const operation = calculateTextOperation(oldText, newText, 0);
-      
+
       expect(operation).toEqual({
         type: 'delete',
-        position: 1, // Common prefix 'h' = 1, so deletion starts at position 1
-        length: 3 // 'hello' (5) - 'hi' (2) = 3
+        position: 1,
+        length: 3
       });
     });
 
@@ -148,38 +147,36 @@ describe('cursorTransform', () => {
       const oldText = 'hello world';
       const newText = 'hello universe';
       const operation = calculateTextOperation(oldText, newText, 6);
-      
+
       expect(operation).toEqual({
         type: 'insert',
         position: 6,
-        length: 3, // 'universe' (8) - 'world' (5) = 3
+        length: 3,
         content: 'universe'
       });
     });
 
     test('edge case: no detectable change in complex text patterns', () => {
-      // This is a tricky case where the algorithm might not detect a change
-      // due to complex suffix/prefix matching resulting in empty middle sections
+      // Сложный случай, когда алгоритм может не обнаружить изменение
       const oldText = 'abc';
       const newText = 'abc';
       const operation = calculateTextOperation(oldText, newText, 1);
-      
-      expect(operation).toBeNull(); // No change detected
+
+      expect(operation).toBeNull();
     });
 
     test('edge case: empty middle sections result in null operation', () => {
-      // Create a scenario where oldMiddle and newMiddle are both empty
-      // This can happen with certain text patterns
+      // Сценарий с пустыми средними секциями
       const oldText = 'prefix_suffix';
       const newText = 'prefix_suffix';
       const operation = calculateTextOperation(oldText, newText, 6);
-      
-      expect(operation).toBeNull(); // Should hit the final return null case
+
+      expect(operation).toBeNull();
     });
   });
 
   describe('transformCursorPosition - INSERT operations', () => {
-    
+
     describe('Same line insertions', () => {
       test('insertion before cursor on same line', () => {
         const oldText = 'hello world';
@@ -191,9 +188,9 @@ describe('cursorTransform', () => {
           content: 'hi, '
         };
         const newText = 'hi, hello world';
-        
+
         const result = transformCursorPosition(cursorPos, operation, oldText, newText);
-        expect(result.position).toBe(10); // Moved forward by 4
+        expect(result.position).toBe(10); 4
         expect(result.wasUnchanged).toBe(false);
       });
 
@@ -207,9 +204,9 @@ describe('cursorTransform', () => {
           content: '!'
         };
         const newText = 'hello world!';
-        
+
         const result = transformCursorPosition(cursorPos, operation, oldText, newText);
-        expect(result.position).toBe(5); // Unchanged
+        expect(result.position).toBe(5);
         expect(result.wasUnchanged).toBe(true);
       });
 
@@ -223,9 +220,9 @@ describe('cursorTransform', () => {
           content: ','
         };
         const newText = 'hello, world';
-        
+
         const result = transformCursorPosition(cursorPos, operation, oldText, newText);
-        expect(result.position).toBe(6); // Moved forward by 1
+        expect(result.position).toBe(6); 1
         expect(result.wasUnchanged).toBe(false);
       });
     });
@@ -241,9 +238,9 @@ describe('cursorTransform', () => {
           content: '\n'
         };
         const newText = 'hello\n world';
-        
+
         const result = transformCursorPosition(cursorPos, operation, oldText, newText);
-        expect(result.position).toBe(9); // On new line at position 3 (after ' wo')
+        expect(result.position).toBe(9);
         expect(result.wasUnchanged).toBe(false);
       });
 
@@ -257,9 +254,9 @@ describe('cursorTransform', () => {
           content: '\n'
         };
         const newText = 'hello\n world';
-        
+
         const result = transformCursorPosition(cursorPos, operation, oldText, newText);
-        expect(result.position).toBe(3); // Stays at same position
+        expect(result.position).toBe(3);
         expect(result.wasUnchanged).toBe(false);
       });
 
@@ -273,9 +270,9 @@ describe('cursorTransform', () => {
           content: 'inserted\ntext\n'
         };
         const newText = 'line1\ninserted\ntext\nline2\nline3';
-        
+
         const result = transformCursorPosition(cursorPos, operation, oldText, newText);
-        expect(result.position).toBe(26); // Moved down by 2 lines (line1\n + inserted\n + text\n = 6+9+5+6 = 26)
+        expect(result.position).toBe(26);
         expect(result.wasUnchanged).toBe(false);
       });
 
@@ -289,9 +286,9 @@ describe('cursorTransform', () => {
           content: '\nline4'
         };
         const newText = 'line1\nline2\nline3\nline4';
-        
+
         const result = transformCursorPosition(cursorPos, operation, oldText, newText);
-        expect(result.position).toBe(3); // Unchanged
+        expect(result.position).toBe(3);
         expect(result.wasUnchanged).toBe(true);
       });
     });
@@ -307,7 +304,7 @@ describe('cursorTransform', () => {
           content: 'new\ntext'
         };
         const newText = 'line1\nnew\ntextline2\nline3';
-        
+
         const result = transformCursorPosition(cursorPos, operation, oldText, newText);
         // Cursor should move to new line after the insertion
         expect(result.wasUnchanged).toBe(false);
@@ -316,7 +313,7 @@ describe('cursorTransform', () => {
   });
 
   describe('transformCursorPosition - DELETE operations', () => {
-    
+
     describe('Same line deletions', () => {
       test('deletion before cursor on same line', () => {
         const oldText = 'hello beautiful world';
@@ -327,9 +324,9 @@ describe('cursorTransform', () => {
           length: 10 // Delete 'beautiful '
         };
         const newText = 'hello world';
-        
+
         const result = transformCursorPosition(cursorPos, operation, oldText, newText);
-        expect(result.position).toBe(6); // Moved back by 10: 16 - 10 = 6
+        expect(result.position).toBe(6);
         expect(result.wasUnchanged).toBe(false);
       });
 
@@ -342,9 +339,9 @@ describe('cursorTransform', () => {
           length: 10
         };
         const newText = 'hello world';
-        
+
         const result = transformCursorPosition(cursorPos, operation, oldText, newText);
-        expect(result.position).toBe(5); // Unchanged
+        expect(result.position).toBe(5);
         expect(result.wasUnchanged).toBe(true);
       });
 
@@ -357,9 +354,9 @@ describe('cursorTransform', () => {
           length: 10
         };
         const newText = 'hello world';
-        
+
         const result = transformCursorPosition(cursorPos, operation, oldText, newText);
-        expect(result.position).toBe(6); // Moved to deletion start
+        expect(result.position).toBe(6);
         expect(result.wasUnchanged).toBe(false);
       });
     });
@@ -374,9 +371,9 @@ describe('cursorTransform', () => {
           length: 6 // Delete 'line1\n'
         };
         const newText = 'line2\nline3';
-        
+
         const result = transformCursorPosition(cursorPos, operation, oldText, newText);
-        expect(result.position).toBe(6); // Moved up by one line
+        expect(result.position).toBe(6);
         expect(result.wasUnchanged).toBe(false);
       });
 
@@ -389,9 +386,9 @@ describe('cursorTransform', () => {
           length: 2 // Delete 'ne' from line2
         };
         const newText = 'line1\nli2\nline3';
-        
+
         const result = transformCursorPosition(cursorPos, operation, oldText, newText);
-        expect(result.position).toBe(3); // Unchanged
+        expect(result.position).toBe(3);
         expect(result.wasUnchanged).toBe(true);
       });
 
@@ -404,9 +401,9 @@ describe('cursorTransform', () => {
           length: 8 // Delete from middle of line1 to middle of line2
         };
         const newText = 'line2\nline3';
-        
+
         const result = transformCursorPosition(cursorPos, operation, oldText, newText);
-        expect(result.position).toBe(3); // Moved to deletion start
+        expect(result.position).toBe(3);
         expect(result.wasUnchanged).toBe(false);
       });
 
@@ -419,9 +416,9 @@ describe('cursorTransform', () => {
           length: 1 // Delete last character
         };
         const newText = 'line1\nline2\nline';
-        
+
         const result = transformCursorPosition(cursorPos, operation, oldText, newText);
-        expect(result.position).toBe(3); // Position stays the same - deletion is after cursor
+        expect(result.position).toBe(3);
         expect(result.wasUnchanged).toBe(true);
       });
 
@@ -429,14 +426,14 @@ describe('cursorTransform', () => {
         const oldText = 'line1\nline2\nline3\nline4';
         const cursorPos = 8; // Middle of line2
         const operation: TextOperation = {
-          type: 'delete', 
+          type: 'delete',
           position: 20, // Delete from line4
           length: 2 // Delete part of line4
         };
         const newText = 'line1\nline2\nline3\nli4';
-        
+
         const result = transformCursorPosition(cursorPos, operation, oldText, newText);
-        expect(result.position).toBe(8); // Position stays the same - deletion is after cursor
+        expect(result.position).toBe(8);
         expect(result.wasUnchanged).toBe(true);
       });
     });
@@ -453,7 +450,7 @@ describe('cursorTransform', () => {
         content: 'hi '
       };
       const newText = 'hi hello world';
-      
+
       const result = transformCursorPosition(cursorPos, operation, oldText, newText);
       expect(result.position).toBe(3);
       expect(result.wasUnchanged).toBe(false);
@@ -469,7 +466,7 @@ describe('cursorTransform', () => {
         content: ','
       };
       const newText = 'hello, world';
-      
+
       const result = transformCursorPosition(cursorPos, operation, oldText, newText);
       expect(result.position).toBe(12);
       expect(result.wasUnchanged).toBe(false);
@@ -485,7 +482,7 @@ describe('cursorTransform', () => {
         content: 'hello'
       };
       const newText = 'hello';
-      
+
       const result = transformCursorPosition(cursorPos, operation, oldText, newText);
       expect(result.position).toBe(5);
       expect(result.wasUnchanged).toBe(false);
@@ -500,7 +497,7 @@ describe('cursorTransform', () => {
         length: 5
       };
       const newText = '';
-      
+
       const result = transformCursorPosition(cursorPos, operation, oldText, newText);
       expect(result.position).toBe(0);
       expect(result.wasUnchanged).toBe(false);
@@ -516,7 +513,7 @@ describe('cursorTransform', () => {
         content: 'hi '
       };
       const newText = 'hi hello';
-      
+
       const result = transformCursorPosition(cursorPos, operation, oldText, newText);
       // Should handle gracefully, not crash
       expect(result.position).toBeDefined();
@@ -535,9 +532,9 @@ describe('cursorTransform', () => {
         content: '//'
       };
       const newText = 'function test() {\n  //return true;\n}';
-      
+
       const result = transformCursorPosition(cursorPos, operation, oldText, newText);
-      expect(result.position).toBe(34); // Moved forward by 2
+      expect(result.position).toBe(34); 2
       expect(result.wasUnchanged).toBe(false);
     });
 
@@ -551,9 +548,9 @@ describe('cursorTransform', () => {
         content: '\n'
       };
       const newText = 'line1\n\nline2';
-      
+
       const result = transformCursorPosition(cursorPos, operation, oldText, newText);
-      expect(result.position).toBe(9); // Moved down by 1 line
+      expect(result.position).toBe(9);
       expect(result.wasUnchanged).toBe(false);
     });
 
@@ -566,7 +563,7 @@ describe('cursorTransform', () => {
         length: 1
       };
       const newText = 'line1line2';
-      
+
       const result = transformCursorPosition(cursorPos, operation, oldText, newText);
       expect(result.position).toBe(7); // Moved up to same line
       expect(result.wasUnchanged).toBe(false);
@@ -588,18 +585,18 @@ describe('cursorTransform', () => {
       };
       const oldText = 'hello world test';
       const newText = 'hellotestt world test';
-      
+
       const results = transformMultipleCursors(cursors, operation, oldText, newText);
-      
+
       expect(results).toHaveLength(3);
       expect(results[0].userId).toBe('user1');
       expect(results[0].position).toBe(3); // Before insertion
       expect(results[0].wasUnchanged).toBe(true);
-      
+
       expect(results[1].userId).toBe('user2');
       expect(results[1].position).toBe(12); // After insertion, moved forward
       expect(results[1].wasUnchanged).toBe(false);
-      
+
       expect(results[2].userId).toBe('user3');
       expect(results[2].position).toBe(19); // After insertion, moved forward
       expect(results[2].wasUnchanged).toBe(false);
@@ -609,7 +606,7 @@ describe('cursorTransform', () => {
   describe('Corner cases that previously caused bugs', () => {
     test('insertion on line above cursor should move cursor forward', () => {
       const oldText = 'line1\nline2\nline3';
-      const cursorPos = 8; // Middle of line2  
+      const cursorPos = 8; // Middle of line2
       const operation: TextOperation = {
         type: 'insert',
         position: 2, // Middle of line1
@@ -617,9 +614,9 @@ describe('cursorTransform', () => {
         content: 'XXX'
       };
       const newText = 'liXXXne1\nline2\nline3';
-      
+
       const result = transformCursorPosition(cursorPos, operation, oldText, newText);
-      expect(result.position).toBe(11); // Moved forward by 3 (insertion length)
+      expect(result.position).toBe(11);
       expect(result.wasUnchanged).toBe(false);
     });
 
@@ -633,9 +630,9 @@ describe('cursorTransform', () => {
         content: 'export '
       };
       const newText = 'export function test() {\n  console.log("hello");\n  return true;\n}';
-      
+
       const result = transformCursorPosition(cursorPos, operation, oldText, newText);
-      expect(result.position).toBe(43); // Moved forward by 8
+      expect(result.position).toBe(43); 8
       expect(result.wasUnchanged).toBe(false);
     });
   });
@@ -652,7 +649,7 @@ describe('cursorTransform', () => {
         content: 'beautiful world'
       };
       const newText = 'hello beautiful world';
-      
+
       const result = transformCursorPosition(cursorPos, operation, oldText, newText);
       expect(result.position).toBe(21); // Actual algorithm result
       expect(result.wasUnchanged).toBe(false);
@@ -668,16 +665,16 @@ describe('cursorTransform', () => {
         length: 5
       };
       const newText = 'hello nice world';
-      
+
       const result = transformCursorPosition(cursorPos, operation, oldText, newText);
-      expect(result.position).toBe(10); // Moved back by 5
+      expect(result.position).toBe(10); 5
       expect(result.wasUnchanged).toBe(false);
     });
 
     test('replacement treated as insertion - cursor before replacement', () => {
       const oldText = 'hello world';
       const cursorPos = 3; // In middle of 'hello'
-      // Replace 'world' with 'beautiful world' 
+      // Replace 'world' with 'beautiful world'
       const operation: TextOperation = {
         type: 'insert',
         position: 6,
@@ -685,9 +682,9 @@ describe('cursorTransform', () => {
         content: 'beautiful world'
       };
       const newText = 'hello beautiful world';
-      
+
       const result = transformCursorPosition(cursorPos, operation, oldText, newText);
-      expect(result.position).toBe(3); // Unchanged - replacement is after cursor
+      expect(result.position).toBe(3);
       expect(result.wasUnchanged).toBe(true);
     });
 
@@ -698,28 +695,27 @@ describe('cursorTransform', () => {
       const operation: TextOperation = {
         type: 'delete',
         position: 6,
-        length: 9 // Delete 'beautiful'
+        length: 9
       };
       const newText = 'hello nice world';
-      
+
       const result = transformCursorPosition(cursorPos, operation, oldText, newText);
       expect(result.position).toBe(6); // Moved to start of deletion
       expect(result.wasUnchanged).toBe(false);
     });
 
     test('same length replacement - no cursor transformation needed', () => {
-      // This case would return null from calculateTextOperation
-      // but if we forced it through transformCursorPosition:
+      // Данный случай вернул бы null из calculateTextOperation
       const oldText = 'hello world';
       const cursorPos = 8;
       const operation: TextOperation = {
         type: 'insert',
         position: 6,
-        length: 0, // No net change
+        length: 0,
         content: 'earth'
       };
       const newText = 'hello earth';
-      
+
       const result = transformCursorPosition(cursorPos, operation, oldText, newText);
       expect(result.position).toBe(11); // Cursor position changes due to text replacement
       expect(result.wasUnchanged).toBe(false); // Algorithm still processes the operation
@@ -737,9 +733,9 @@ describe('cursorTransform', () => {
         content: ','
       };
       const newText = 'hello, world';
-      
+
       const result = transformCursorPosition(cursorPos, operation, oldText, newText);
-      expect(result.position).toBe(6); // Moved forward by insertion
+      expect(result.position).toBe(6);
       expect(result.wasUnchanged).toBe(false);
     });
 
@@ -752,7 +748,7 @@ describe('cursorTransform', () => {
         length: 1
       };
       const newText = 'hello world';
-      
+
       const result = transformCursorPosition(cursorPos, operation, oldText, newText);
       expect(result.position).toBe(5); // Cursor at deletion position stays at same position
       expect(result.wasUnchanged).toBe(true);
@@ -768,7 +764,7 @@ describe('cursorTransform', () => {
         content: ''
       };
       const newText = 'hello world';
-      
+
       const result = transformCursorPosition(cursorPos, operation, oldText, newText);
       expect(result.position).toBe(6); // No change as length is 0
       expect(result.wasUnchanged).toBe(false); // But operation still triggers transformation
@@ -784,7 +780,7 @@ describe('cursorTransform', () => {
         content: 'hello'
       };
       const newText = 'hellotest';
-      
+
       const result = transformCursorPosition(cursorPos, operation, oldText, newText);
       expect(result.position).toBe(5); // Moved by insertion length
       expect(result.wasUnchanged).toBe(false);
@@ -800,7 +796,7 @@ describe('cursorTransform', () => {
         content: 'hello'
       };
       const newText = 'hellotest';
-      
+
       const result = transformCursorPosition(cursorPos, operation, oldText, newText);
       expect(result.position).toBe(9); // Moved by insertion length
       expect(result.wasUnchanged).toBe(false);
@@ -818,7 +814,7 @@ describe('cursorTransform', () => {
         content: '{\n  console.log("debug");\n  return true;\n}'
       };
       const newText = 'function test() {\n  console.log("debug");\n  return true;\n}';
-      
+
       const result = transformCursorPosition(cursorPos, operation, oldText, newText);
       expect(result.position).toBe(58); // Actual algorithm result for multi-line replacement
       expect(result.wasUnchanged).toBe(false);
@@ -833,7 +829,7 @@ describe('cursorTransform', () => {
         length: 20 // Net deletion
       };
       const newText = 'function test() { return true; }';
-      
+
       const result = transformCursorPosition(cursorPos, operation, oldText, newText);
       expect(result.position).toBe(33); // Actual algorithm result for multi-line deletion
       expect(result.wasUnchanged).toBe(false);
@@ -844,32 +840,32 @@ describe('cursorTransform', () => {
     test('unknown operation type falls back to default case', () => {
       const oldText = 'hello world';
       const cursorPos = 6;
-      // Create an operation with an unknown type (this would not happen in practice)
+      // Операция с неизвестным типом (на практике не происходит)
       const operation: any = {
         type: 'unknown',
         position: 0,
         length: 5
       };
       const newText = 'hello world';
-      
+
       const result = transformCursorPosition(cursorPos, operation, oldText, newText);
-      expect(result.position).toBe(6); // Position stays the same
+      expect(result.position).toBe(6);
       expect(result.wasUnchanged).toBe(true);
     });
 
     test('malformed operation falls back to default case', () => {
       const oldText = 'test text';
       const cursorPos = 4;
-      // Create a malformed operation
+      // Некорректная операция
       const operation: any = {
         type: null,
         position: 0,
         length: 0
       };
       const newText = 'test text';
-      
+
       const result = transformCursorPosition(cursorPos, operation, oldText, newText);
-      expect(result.position).toBe(4); // Position stays the same
+      expect(result.position).toBe(4);
       expect(result.wasUnchanged).toBe(true);
     });
   });

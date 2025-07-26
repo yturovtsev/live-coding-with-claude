@@ -33,9 +33,9 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ roomId }) => {
   const { currentFile, users, isInRoom, currentUserId } = useAppSelector((state) => state.code);
   const { sendCodeUpdate, sendLanguageChange, sendCursorUpdate } = useSocket();
 
-  const [code, setCode] = useState(currentFile?.code || '');
-  const [language, setLanguage] = useState(currentFile?.language || 'javascript');
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [code, setCode] = useState<string>(currentFile?.code || '');
+  const [language, setLanguage] = useState<string>(currentFile?.language || 'typescript');
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const debouncedCodeUpdate = useCallback(
     debounce((newCode: string, currentIsInRoom: boolean) => {
@@ -59,7 +59,6 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ roomId }) => {
     if (currentFile) {
       setCode(currentFile.code);
       setLanguage(currentFile.language);
-      // Initialize previousCode when file is loaded
       dispatch(updateCode({ code: currentFile.code, language: currentFile.language }));
     }
   }, [currentFile, dispatch]);
@@ -71,30 +70,25 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ roomId }) => {
 
     setCode(newCode);
 
-    // If we're in a room, transform cursors for local changes too
     if (isInRoom && oldCode !== newCode) {
       const operation = calculateTextOperation(oldCode, newCode, 0);
-      console.log('🔄 LOCAL: User typing, transforming other cursors with operation:', operation);
-      console.log('🔄 LOCAL: Current user cursor position after change:', newCursorPosition);
 
       dispatch(updateCode({
         code: newCode,
         fromLocalUser: true,
         operation: operation || undefined
       }));
-      
-      // Update current user's cursor position immediately to prevent incorrect transformation
+
       if (currentUserId) {
-        dispatch(updateUserCursor({ 
-          userId: currentUserId, 
-          position: newCursorPosition 
+        dispatch(updateUserCursor({
+          userId: currentUserId,
+          position: newCursorPosition
         }));
       }
     } else {
       dispatch(updateCode({ code: newCode }));
     }
 
-    // Передаем текущее состояние isInRoom в debounced функцию
     debouncedCodeUpdate(newCode, isInRoom);
   };
 
@@ -115,23 +109,20 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ roomId }) => {
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === 'Tab') {
-      event.preventDefault(); // Предотвращаем стандартное поведение Tab
+      event.preventDefault();
 
       const textarea = event.currentTarget;
       const start = textarea.selectionStart;
       const end = textarea.selectionEnd;
-      const tabChar = '  '; // 2 пробела
+      const tabChar = '  ';
 
       if (event.shiftKey) {
-        // Shift+Tab - убираем отступ
         const beforeCursor = code.substring(0, start);
         const afterCursor = code.substring(end);
 
-        // Находим начало текущей строки
         const lineStart = beforeCursor.lastIndexOf('\n') + 1;
         const currentLine = beforeCursor.substring(lineStart);
 
-        // Если строка начинается с пробелов/табов, убираем
         if (currentLine.startsWith(tabChar)) {
           const newValue = code.substring(0, lineStart) + currentLine.substring(tabChar.length) + afterCursor;
           setCode(newValue);
@@ -141,12 +132,10 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ roomId }) => {
           setTimeout(() => {
             const newPosition = Math.max(lineStart, start - tabChar.length);
             textarea.selectionStart = textarea.selectionEnd = newPosition;
-            // Update cursor position after tab operation
             debouncedCursorUpdate(newPosition, isInRoom);
           }, 0);
         }
       } else {
-        // Обычный Tab - добавляем отступ
         const newValue = code.substring(0, start) + tabChar + code.substring(end);
 
         setCode(newValue);
@@ -156,12 +145,10 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ roomId }) => {
         setTimeout(() => {
           const newPosition = start + tabChar.length;
           textarea.selectionStart = textarea.selectionEnd = newPosition;
-          // Update cursor position after tab operation
           debouncedCursorUpdate(newPosition, isInRoom);
         }, 0);
       }
     } else {
-      // Для других клавиш обновляем позицию курсора
       handleCursorChange(event);
     }
   };
@@ -251,7 +238,6 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ roomId }) => {
           </SyntaxHighlighter>
         </div>
 
-        {/* Курсоры других пользователей */}
         {(() => {
           const otherUsers = users.filter(user =>
             user.cursorPosition !== undefined &&

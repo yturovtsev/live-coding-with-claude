@@ -1,7 +1,3 @@
-/**
- * Utility functions for transforming cursor positions during text operations
- */
-
 export interface TextOperation {
   type: 'insert' | 'delete';
   position: number;
@@ -9,9 +5,25 @@ export interface TextOperation {
   content?: string;
 }
 
-/**
- * Get line and column from text position
- */
+interface LineColumn {
+  line: number;
+  column: number;
+}
+
+interface CursorTransformResult {
+  position: number | null;
+  wasUnchanged: boolean;
+}
+
+interface CursorContext {
+  cursorLineCol: LineColumn;
+  operationLineCol: LineColumn;
+  cursorPosition: number;
+  operation: TextOperation;
+  oldText: string;
+  newText: string;
+}
+
 function getLineAndColumn(text: string, position: number) {
   const beforeCursor = text.substring(0, position);
   const lines = beforeCursor.split('\n');
@@ -21,159 +33,214 @@ function getLineAndColumn(text: string, position: number) {
   };
 }
 
-/**
- * Get position from line and column
- */
 function getPositionFromLineColumn(text: string, line: number, column: number) {
   const lines = text.split('\n');
   let position = 0;
 
-  // Add length of all previous lines
   for (let i = 0; i < line && i < lines.length; i++) {
-    position += lines[i].length + 1; // +1 for newline
+    position += lines[i].length + 1;
   }
 
-  // Add column position on target line
   if (line < lines.length) {
     position += Math.min(column, lines[line].length);
   }
 
-
   return position;
 }
 
+function createCursorContext(
+  cursorPosition: number,
+  operation: TextOperation,
+  oldText: string,
+  newText: string
+): CursorContext {
+  return {
+    cursorLineCol: getLineAndColumn(oldText, cursorPosition),
+    operationLineCol: getLineAndColumn(oldText, operation.position),
+    cursorPosition,
+    operation,
+    oldText,
+    newText
+  };
+}
+
+function unchangedResult(position: number): CursorTransformResult {
+  return { position, wasUnchanged: true };
+}
+
+function changedResult(position: number | null): CursorTransformResult {
+  return { position, wasUnchanged: false };
+}
+
 /**
- * Transform cursor position based on text operation with line awareness
- * @param cursorPosition Current cursor position
- * @param operation Text operation that was performed
- * @param oldText Text before the operation
- * @param newText Text after the operation
- * @returns New cursor position or null if cursor should be hidden
+ * Обработка операций вставки текста
+ */
+function handleInsertOperation(context: CursorContext): CursorTransformResult {
+  const { cursorLineCol, operationLineCol, operation } = context;
+  const newLinesAdded = (operation.content || '').split('\n').length - 1;
+
+  if (operationLineCol.line !== cursorLineCol.line) {
+    return handleInsertOnDifferentLine(context, newLinesAdded);
+  }
+
+  return handleInsertOnSameLine(context, newLinesAdded);
+}
+
+function handleInsertOnDifferentLine(context: CursorContext, newLinesAdded: number): CursorTransformResult {
+  const { cursorLineCol, operationLineCol, cursorPosition, operation, newText } = context;
+
+  if (operationLineCol.line < cursorLineCol.line) {
+    if (newLinesAdded > 0) {
+      // Добавлены новые строки выше курсора - сдвигаем курсор вниз
+      const newPosition = getPositionFromLineColumn(newText, cursorLineCol.line + newLinesAdded, cursorLineCol.column);
+      return changedResult(newPosition);
+    } else {
+      // Текст вставлен выше курсора без переносов строк
+      return changedResult(cursorPosition + operation.length);
+    }
+  } else {
+    // Вставка ниже курсора - позиция остается прежней
+    return unchangedResult(cursorPosition);
+  }
+}
+
+function handleInsertOnSameLine(context: CursorContext, newLinesAdded: number): CursorTransformResult {
+  const { cursorLineCol, operationLineCol, operation, newText } = context;
+
+  if (newLinesAdded > 0) {
+    // Текст был разделен на несколько строк
+    if (operationLineCol.column <= cursorLineCol.column) {
+      // Вставка до курсора - курсор переходит на новую строку
+      const remainingTextAfterSplit = (operation.content || '').split('\n').pop() || '';
+      const cursorNewColumn = cursorLineCol.column - operationLineCol.column + remainingTextAfterSplit.length;
+      const newPosition = getPositionFromLineColumn(newText, cursorLineCol.line + newLinesAdded, cursorNewColumn);
+      return changedResult(newPosition);
+    } else {
+      // Вставка после курсора - курсор остается на той же строке
+      const newPosition = getPositionFromLineColumn(newText, cursorLineCol.line, cursorLineCol.column);
+      return changedResult(newPosition);
+    }
+  } else {
+    // Та же строка, переносы строк не добавлены
+    if (operationLineCol.column <= cursorLineCol.column) {
+      // Вставка до курсора - сдвигаем курсор вперед
+      const insertionLength = operation.content ? operation.content.length : operation.length;
+      const newColumn = cursorLineCol.column + insertionLength;
+      const newPosition = getPositionFromLineColumn(newText, cursorLineCol.line, newColumn);
+      return changedResult(newPosition);
+    } else {
+      // Вставка после курсора - курсор остается в той же колонке
+      const newPosition = getPositionFromLineColumn(newText, cursorLineCol.line, cursorLineCol.column);
+      return unchangedResult(newPosition);
+    }
+  }
+}
+
+/**
+ * Обработка операций удаления текста
+ */
+function handleDeleteOperation(context: CursorContext): CursorTransformResult {
+  const { cursorLineCol, operationLineCol, cursorPosition, operation, oldText } = context;
+  const deleteEndPos = operation.position + operation.length;
+  const deleteEndLineCol = getLineAndColumn(oldText, deleteEndPos);
+
+  if (deleteEndLineCol.line < cursorLineCol.line) {
+    return handleDeleteBeforeCursor(context, deleteEndLineCol);
+  }
+
+  if (operationLineCol.line < cursorLineCol.line && deleteEndLineCol.line >= cursorLineCol.line) {
+    return handleDeleteSpanningCursorLine(context, deleteEndLineCol);
+  }
+
+  if (operationLineCol.line === cursorLineCol.line && deleteEndLineCol.line === cursorLineCol.line) {
+    return handleDeleteOnSameLine(context);
+  }
+
+  if (operationLineCol.line !== cursorLineCol.line && deleteEndLineCol.line !== cursorLineCol.line) {
+    return handleDeleteOnDifferentLine(context, deleteEndLineCol);
+  }
+
+  return unchangedResult(cursorPosition);
+}
+
+function handleDeleteBeforeCursor(context: CursorContext, deleteEndLineCol: LineColumn): CursorTransformResult {
+  const { cursorLineCol, operationLineCol, newText } = context;
+  const linesDeleted = deleteEndLineCol.line - operationLineCol.line;
+  const newPosition = getPositionFromLineColumn(newText, cursorLineCol.line - linesDeleted, cursorLineCol.column);
+  return changedResult(newPosition);
+}
+
+function handleDeleteSpanningCursorLine(context: CursorContext, deleteEndLineCol: LineColumn): CursorTransformResult {
+  const { cursorLineCol, operation } = context;
+  
+  // Специальный случай: удаление только символа перевода строки
+  if (operation.length === 1 && deleteEndLineCol.line === cursorLineCol.line) {
+    const cursorColumnPosition = cursorLineCol.column;
+    return changedResult(operation.position + cursorColumnPosition);
+  }
+  
+  // Строка курсора затронута - перемещаем к началу удаления
+  return changedResult(operation.position);
+}
+
+function handleDeleteOnSameLine(context: CursorContext): CursorTransformResult {
+  const { cursorLineCol, cursorPosition, operation, newText } = context;
+
+  if (operation.position + operation.length <= cursorPosition) {
+    // Удаление полностью до курсора
+    return changedResult(cursorPosition - operation.length);
+  }
+
+  if (operation.position < cursorPosition && operation.position + operation.length > cursorPosition) {
+    // Удаление включает позицию курсора
+    return changedResult(operation.position);
+  }
+
+  // Удаление полностью после курсора
+  const newPosition = getPositionFromLineColumn(newText, cursorLineCol.line, cursorLineCol.column);
+  return unchangedResult(newPosition);
+}
+
+function handleDeleteOnDifferentLine(context: CursorContext, deleteEndLineCol: LineColumn): CursorTransformResult {
+  const { cursorPosition, operationLineCol } = context;
+  const linesDeleted = deleteEndLineCol.line - operationLineCol.line;
+  
+  if (linesDeleted === 0) {
+    return unchangedResult(cursorPosition);
+  }
+  
+  return unchangedResult(cursorPosition);
+}
+
+/**
+ * Трансформация позиции курсора с учетом операций редактирования текста
+ * @param cursorPosition Текущая позиция курсора
+ * @param operation Операция редактирования текста
+ * @param oldText Текст до операции
+ * @param newText Текст после операции
+ * @returns Новая позиция курсора или null если курсор должен быть скрыт
  */
 export function transformCursorPosition(
   cursorPosition: number,
   operation: TextOperation,
   oldText: string,
   newText: string
-): { position: number | null; wasUnchanged: boolean } {
-  // Get cursor's line and column in old text
-  const cursorLineCol = getLineAndColumn(oldText, cursorPosition);
-  const operationLineCol = getLineAndColumn(oldText, operation.position);
-
-  // Debug logging disabled in production
-
+): CursorTransformResult {
+  const context = createCursorContext(cursorPosition, operation, oldText, newText);
   switch (operation.type) {
     case 'insert':
-      const newLinesAdded = (operation.content || '').split('\n').length - 1;
-
-      // Case 1: Insertion is on a different line than cursor
-      if (operationLineCol.line !== cursorLineCol.line) {
-        if (operationLineCol.line < cursorLineCol.line) {
-          // Insertion is above cursor line
-          if (newLinesAdded > 0) {
-            // New lines added above cursor - move cursor down
-            const newPosition = getPositionFromLineColumn(newText, cursorLineCol.line + newLinesAdded, cursorLineCol.column);
-            return { position: newPosition, wasUnchanged: false };
-          } else {
-            // Text inserted above cursor without newlines - cursor moves forward by insertion length
-            return { position: cursorPosition + operation.length, wasUnchanged: false };
-          }
-        } else {
-          // Insertion is below cursor - cursor position stays exactly the same
-          return { position: cursorPosition, wasUnchanged: true };
-        }
-      }
-
-      // Case 2: Insertion is on the same line as cursor
-      
-      if (newLinesAdded > 0) {
-        // Text was split into multiple lines
-        if (operationLineCol.column <= cursorLineCol.column) {
-          // Insertion is before cursor - cursor moves to new line
-          const remainingTextAfterSplit = (operation.content || '').split('\n').pop() || '';
-          const cursorNewColumn = cursorLineCol.column - operationLineCol.column + remainingTextAfterSplit.length;
-          return { position: getPositionFromLineColumn(newText, cursorLineCol.line + newLinesAdded, cursorNewColumn), wasUnchanged: false };
-        } else {
-          // Insertion is after cursor - cursor stays on same line
-          return { position: getPositionFromLineColumn(newText, cursorLineCol.line, cursorLineCol.column), wasUnchanged: false };
-        }
-      } else {
-        // Same line, no newlines added
-        if (operationLineCol.column <= cursorLineCol.column) {
-          // Insertion is before cursor - move cursor forward
-          const insertionLength = operation.content ? operation.content.length : operation.length;
-          const newColumn = cursorLineCol.column + insertionLength;
-          return { position: getPositionFromLineColumn(newText, cursorLineCol.line, newColumn), wasUnchanged: false };
-        } else {
-          // Insertion is after cursor - cursor stays at same column
-          return { position: getPositionFromLineColumn(newText, cursorLineCol.line, cursorLineCol.column), wasUnchanged: true };
-        }
-      }
-
+      return handleInsertOperation(context);
+    
     case 'delete':
-      const deleteEndPos = operation.position + operation.length;
-      const deleteEndLineCol = getLineAndColumn(oldText, deleteEndPos);
-
-      // If deletion is entirely before cursor line
-      if (deleteEndLineCol.line < cursorLineCol.line) {
-        const linesDeleted = deleteEndLineCol.line - operationLineCol.line;
-        // Move cursor up by the number of lines deleted
-        const newPosition = getPositionFromLineColumn(newText, cursorLineCol.line - linesDeleted, cursorLineCol.column);
-        return { position: newPosition, wasUnchanged: false };
-      }
-
-      // If deletion starts before cursor line and ends on or after cursor line
-      if (operationLineCol.line < cursorLineCol.line && deleteEndLineCol.line >= cursorLineCol.line) {
-        // Special case: if deleting just a newline character, preserve cursor's relative position
-        if (operation.length === 1 && deleteEndLineCol.line === cursorLineCol.line) {
-          // Deleting newline character - cursor moves up but keeps same relative column position
-          const cursorColumnPosition = cursorLineCol.column;
-          return { position: operation.position + cursorColumnPosition, wasUnchanged: false };
-        }
-        // Cursor line was affected, move to deletion start
-        return { position: operation.position, wasUnchanged: false };
-      }
-
-      // If deletion is on the same line as cursor
-      if (operationLineCol.line === cursorLineCol.line && deleteEndLineCol.line === cursorLineCol.line) {
-        // Deletion is entirely on the same line as cursor
-        if (operation.position + operation.length <= cursorPosition) {
-          // Deletion is entirely before cursor - move cursor back by the length of deleted text
-          return { position: cursorPosition - operation.length, wasUnchanged: false };
-        }
-
-        if (operation.position < cursorPosition && operation.position + operation.length > cursorPosition) {
-          // Deletion includes cursor position - move cursor to deletion start
-          return { position: operation.position, wasUnchanged: false };
-        }
-
-        // Deletion is entirely after cursor - cursor stays at same column
-        return { position: getPositionFromLineColumn(newText, cursorLineCol.line, cursorLineCol.column), wasUnchanged: true };
-      }
-
-      // If deletion is on a different line (above or below cursor) and no lines deleted
-      if (operationLineCol.line !== cursorLineCol.line && deleteEndLineCol.line !== cursorLineCol.line) {
-        const linesDeleted = deleteEndLineCol.line - operationLineCol.line;
-        if (linesDeleted === 0) {
-          // Text deleted on different line without deleting lines - cursor position stays exactly the same
-          return { position: cursorPosition, wasUnchanged: true }; // Return original position unchanged
-        }
-      }
-      
-      // If deletion is after cursor, position stays the same
-      return { position: cursorPosition, wasUnchanged: true };
-
+      return handleDeleteOperation(context);
+    
     default:
-      return { position: cursorPosition, wasUnchanged: true };
+      return unchangedResult(cursorPosition);
   }
 }
 
 /**
- * Calculate text operation between old and new text
- * @param oldText Previous text content
- * @param newText New text content
- * @param changePosition Position where change started (from textarea selectionStart)
- * @returns Text operation or null if no change detected
+ * Вычисление операции редактирования между старым и новым текстом
  */
 export function calculateTextOperation(
   oldText: string,
@@ -184,7 +251,6 @@ export function calculateTextOperation(
     return null;
   }
 
-  // Find the common prefix and suffix
   let prefixLength = 0;
   while (
     prefixLength < oldText.length &&
@@ -207,7 +273,6 @@ export function calculateTextOperation(
   const newMiddle = newText.slice(prefixLength, newText.length - suffixLength);
 
   if (oldMiddle.length === 0 && newMiddle.length > 0) {
-    // Insertion
     return {
       type: 'insert',
       position: prefixLength,
@@ -215,17 +280,14 @@ export function calculateTextOperation(
       content: newMiddle,
     };
   } else if (oldMiddle.length > 0 && newMiddle.length === 0) {
-    // Deletion
     return {
       type: 'delete',
       position: prefixLength,
       length: oldMiddle.length,
     };
   } else if (oldMiddle.length > 0 && newMiddle.length > 0) {
-    // Replacement - for cursor transformation, treat as insert if net positive change
     const netChange = newMiddle.length - oldMiddle.length;
     if (netChange > 0) {
-      // More text added than removed - treat as insertion
       return {
         type: 'insert',
         position: prefixLength,
@@ -233,14 +295,12 @@ export function calculateTextOperation(
         content: newMiddle,
       };
     } else if (netChange < 0) {
-      // More text removed than added - treat as deletion
       return {
         type: 'delete',
         position: prefixLength,
         length: -netChange,
       };
     }
-    // If same length, no cursor transformation needed
     return null;
   }
 
@@ -248,12 +308,7 @@ export function calculateTextOperation(
 }
 
 /**
- * Transform multiple cursor positions based on a text operation
- * @param cursors Array of cursor positions
- * @param operation Text operation
- * @param oldText Text before the operation
- * @param newText Text after the operation
- * @returns Array of transformed cursor positions (null values indicate hidden cursors)
+ * Трансформация позиций нескольких курсоров
  */
 export function transformMultipleCursors(
   cursors: Array<{ userId: string; position: number }>,

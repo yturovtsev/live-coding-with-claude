@@ -3,7 +3,7 @@ import { AppModule } from './app.module';
 import 'reflect-metadata';
 import { randomUUID } from 'crypto';
 
-// Полифилл для crypto.randomUUID в глобальном объекте
+// Полифилл для crypto.randomUUID
 if (!globalThis.crypto) {
   globalThis.crypto = { randomUUID } as any;
 }
@@ -22,6 +22,5 @@ async function bootstrap() {
 
   const port = process.env.PORT || 3000;
   await app.listen(port);
-  console.log(`Application is running on: http://localhost:${port}`);
 }
 bootstrap();
