@@ -21,7 +21,7 @@ async function bootstrap() {
     },
   });
 
-  const port = process.env.PORT;
+  const port = process.env.PORT || 3000;
   console.log(`🚀 Server starting on port: ${port}`);
   console.log(`📦 NODE_ENV: ${process.env.NODE_ENV}`);
   console.log(`🌐 CORS origins: ${process.env.ALLOWED_ORIGINS || 'default'}`);

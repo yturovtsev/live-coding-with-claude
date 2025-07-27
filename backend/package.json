@@ -6,6 +6,7 @@
     "build": "tsc",
     "start": "node dist/main.js",
     "start:dev": "nodemon --exec ts-node src/main.ts",
+    "start:prod": "npm run build && npm start",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
