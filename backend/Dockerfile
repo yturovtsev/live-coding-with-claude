@@ -2,10 +2,12 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-COPY package.json ./
+# Copy package.json from backend directory
+COPY backend/package.json ./
 RUN npm install
 
-COPY . .
+# Copy all backend files
+COPY backend/ ./
 RUN npm run build
 
 # Remove dev dependencies after build
