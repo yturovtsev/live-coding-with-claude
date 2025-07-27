@@ -9,17 +9,33 @@ import { CleanupService } from './services/cleanup.service';
 
 @Module({
   imports: [
-    SequelizeModule.forRoot({
-      dialect: 'postgres',
-      host: process.env.DB_HOST || 'localhost',
-      port: parseInt(process.env.DB_PORT || '5432'),
-      username: process.env.DB_USERNAME || 'postgres',
-      password: process.env.DB_PASSWORD || 'password',
-      database: process.env.DB_NAME || 'livecoding',
-      models: [CodeFile],
-      autoLoadModels: true,
-      synchronize: true,
-    }),
+    SequelizeModule.forRoot(
+      process.env.DATABASE_URL
+        ? {
+            dialect: 'postgres',
+            url: process.env.DATABASE_URL,
+            models: [CodeFile],
+            autoLoadModels: true,
+            synchronize: true,
+            dialectOptions: {
+              ssl: {
+                require: true,
+                rejectUnauthorized: false,
+              },
+            },
+          }
+        : {
+            dialect: 'postgres',
+            host: process.env.DB_HOST || 'localhost',
+            port: parseInt(process.env.DB_PORT || '5432'),
+            username: process.env.DB_USERNAME || 'postgres',
+            password: process.env.DB_PASSWORD || 'password',
+            database: process.env.DB_NAME || 'livecoding',
+            models: [CodeFile],
+            autoLoadModels: true,
+            synchronize: true,
+          }
+    ),
     SequelizeModule.forFeature([CodeFile]),
     ScheduleModule.forRoot(),
   ],
