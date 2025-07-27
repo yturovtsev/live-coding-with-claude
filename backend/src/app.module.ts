@@ -17,7 +17,7 @@ import { CleanupService } from './services/cleanup.service';
         console.log('DB_HOST:', process.env.DB_HOST || 'NOT SET');
         console.log('All env vars:', process.env);
 
-        const config = process.env.DATABASE_URL
+        const config = process.env.DATABASE_URL && process.env.DATABASE_URL.length > 0
           ? {
               dialect: 'postgres' as const,
               uri: process.env.DATABASE_URL,

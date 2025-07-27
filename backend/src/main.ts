@@ -28,6 +28,12 @@ async function bootstrap() {
   console.log(`🗄️ DATABASE_URL: ${process.env.DATABASE_URL ? 'configured' : 'NOT SET'}`);
   console.log(`🗄️ DB_HOST: ${process.env.DB_HOST || 'default (localhost)'}`);
 
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
+  console.log(`✅ Application is running on: 0.0.0.0:${port}`);
+  console.log(`🔍 Available routes:`);
+  console.log(`   GET  / - Health check`);
+  console.log(`   GET  /health - Detailed health`);
+  console.log(`   POST /api/code - Create room`);
+  console.log(`   GET  /api/code/:id - Get room`);
 }
 bootstrap();
