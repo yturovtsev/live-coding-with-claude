@@ -25,6 +25,8 @@ async function bootstrap() {
   console.log(`🚀 Server starting on port: ${port}`);
   console.log(`📦 NODE_ENV: ${process.env.NODE_ENV}`);
   console.log(`🌐 CORS origins: ${process.env.ALLOWED_ORIGINS || 'default'}`);
+  console.log(`🗄️ DATABASE_URL: ${process.env.DATABASE_URL ? 'configured' : 'NOT SET'}`);
+  console.log(`🗄️ DB_HOST: ${process.env.DB_HOST || 'default (localhost)'}`);
 
   await app.listen(port);
 }
