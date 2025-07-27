@@ -6,8 +6,10 @@ WORKDIR /app
 COPY backend/package.json ./
 RUN npm install
 
-# Copy all backend files
-COPY backend/ ./
+# Copy all backend files except .env
+COPY backend/src ./src
+COPY backend/tsconfig.json ./
+COPY backend/*.json ./
 RUN npm run build
 
 # Remove dev dependencies after build
