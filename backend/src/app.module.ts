@@ -15,8 +15,8 @@ import { CleanupService } from './services/cleanup.service';
         console.log('🔍 Checking environment variables...');
         console.log('DATABASE_URL:', process.env.DATABASE_URL ? 'SET' : 'NOT SET');
         console.log('DB_HOST:', process.env.DB_HOST || 'NOT SET');
-        console.log('All env vars:', Object.keys(process.env).filter(key => key.includes('DB') || key.includes('PG')));
-        
+        console.log('All env vars:', Object.keys(process.env));
+
         const config = process.env.DATABASE_URL
           ? {
               dialect: 'postgres' as const,
@@ -42,13 +42,13 @@ import { CleanupService } from './services/cleanup.service';
               autoLoadModels: true,
               synchronize: true,
             };
-        
+
         console.log('🗄️ Database config:', {
           dialect: config.dialect,
           host: 'host' in config ? config.host : 'from URI',
           database: 'database' in config ? config.database : 'from URI'
         });
-        
+
         return config;
       },
     }),
