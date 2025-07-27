@@ -5,6 +5,11 @@ import { CodeService } from '../services/code.service';
 export class CodeController {
   constructor(private codeService: CodeService) {}
 
+  @Get('health')
+  health() {
+    return { status: 'ok', timestamp: new Date().toISOString() };
+  }
+
   @Post()
   async createCodeFile() {
     try {
