@@ -13,7 +13,7 @@ import { CleanupService } from './services/cleanup.service';
       process.env.DATABASE_URL
         ? {
             dialect: 'postgres',
-            url: process.env.DATABASE_URL,
+            uri: process.env.DATABASE_URL,
             models: [CodeFile],
             autoLoadModels: true,
             synchronize: true,
