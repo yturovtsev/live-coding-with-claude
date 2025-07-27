@@ -15,7 +15,7 @@ import { CleanupService } from './services/cleanup.service';
         console.log('🔍 Checking environment variables...');
         console.log('DATABASE_URL:', process.env.DATABASE_URL ? 'SET' : 'NOT SET');
         console.log('DB_HOST:', process.env.DB_HOST || 'NOT SET');
-        console.log('All env vars:', Object.keys(process.env));
+        console.log('All env vars:', process.env);
 
         const config = process.env.DATABASE_URL
           ? {
