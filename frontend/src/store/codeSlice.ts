@@ -3,6 +3,7 @@ import axios from 'axios';
 import { CodeFile, CodeState, User, ServerCursor } from '../types';
 import { transformMultipleCursors, calculateTextOperation, TextOperation } from '../utils/cursorTransform';
 
+console.log({'=========env========': process.env })
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
 export const createCodeFile = createAsyncThunk(
@@ -74,9 +75,9 @@ const codeSlice = createSlice({
         }
       }
     },
-    updateCode: (state, action: PayloadAction<{ 
-      code: string; 
-      language?: string; 
+    updateCode: (state, action: PayloadAction<{
+      code: string;
+      language?: string;
       fromOtherUser?: boolean;
       fromLocalUser?: boolean;
       operation?: TextOperation;
@@ -84,11 +85,11 @@ const codeSlice = createSlice({
     }>) => {
       if (state.currentFile) {
         const oldCode = state.currentFile.code;
-        
+
         // Update previous code BEFORE changing current code
         state.previousCode = oldCode;
         state.currentFile.code = action.payload.code;
-        
+
         if (action.payload.language) {
           state.currentFile.language = action.payload.language;
         }
@@ -97,24 +98,24 @@ const codeSlice = createSlice({
         if (action.payload.fromOtherUser || action.payload.fromLocalUser) {
           const isFromOtherUser = action.payload.fromOtherUser;
           const isFromLocalUser = action.payload.fromLocalUser;
-          
+
           console.log(`🔄 REDUX: Processing ${isFromOtherUser ? 'remote' : 'local'} update`);
-          
+
           // If server provided cursor positions, use them directly
           if (action.payload.serverCursors && action.payload.serverCursors.length > 0) {
             console.log('✅ Using server-provided cursor positions:', action.payload.serverCursors);
-            
+
             // Transform all server cursors using the operation
             if (action.payload.operation) {
-              
+
               const transformedCursors = transformMultipleCursors(
                 action.payload.serverCursors.map(c => ({ userId: c.userId, position: c.position })),
                 action.payload.operation,
                 oldCode,
                 action.payload.code
               );
-              
-              
+
+
               // Update cursor positions for all users
               transformedCursors.forEach(({ userId, position, wasUnchanged }) => {
                 const user = state.users.find(u => u.id === userId);
@@ -132,14 +133,14 @@ const codeSlice = createSlice({
           } else if (action.payload.operation) {
             // Transform cursors based on the operation
             console.log('❌ No server cursors, using fallback transformation');
-            
+
             // For local changes, transform only other users' cursors
             // For remote changes, transform all cursors except current user
             const cursorsToTransform = state.users
               .filter(user => {
                 const hasPosition = user.cursorPosition !== undefined;
                 const isCurrentUser = user.id === state.currentUserId;
-                
+
                 if (isFromLocalUser) {
                   // Local change: transform only other users' cursors, exclude editing user
                   return hasPosition && !isCurrentUser;
@@ -149,12 +150,12 @@ const codeSlice = createSlice({
                 }
               })
               .map(user => ({ userId: user.id, position: user.cursorPosition! }));
-              
+
             console.log(`🔄 REDUX: Transforming ${cursorsToTransform.length} cursors for ${isFromLocalUser ? 'local' : 'remote'} change`);
 
             if (cursorsToTransform.length > 0) {
               const transformedCursors = transformMultipleCursors(cursorsToTransform, action.payload.operation, oldCode, action.payload.code);
-              
+
               transformedCursors.forEach(({ userId, position, wasUnchanged }) => {
                 const user = state.users.find(u => u.id === userId);
                 if (user) {
