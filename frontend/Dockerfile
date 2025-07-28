@@ -2,17 +2,17 @@ FROM node:18-alpine AS build
 
 WORKDIR /app
 
-# Copy package files from frontend directory
-COPY frontend/package*.json ./
+# Copy package files - handle both cases (from root or from frontend dir)
+COPY package*.json ./
 RUN npm ci
 
-# Copy all frontend files
-COPY frontend/ ./
+# Copy all files
+COPY . ./
 RUN npm run build
 
 FROM nginx:alpine
 COPY --from=build /app/build /usr/share/nginx/html
-COPY frontend/nginx.conf /etc/nginx/nginx.conf
+COPY nginx.conf /etc/nginx/nginx.conf
 
 EXPOSE 8080
 
