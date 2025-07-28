@@ -28,6 +28,7 @@
   "scripts": {
     "start": "GENERATE_SOURCEMAP=false PORT=3001 react-scripts start",
     "build": "react-scripts build",
+    "serve": "serve -s build -p $PORT",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },

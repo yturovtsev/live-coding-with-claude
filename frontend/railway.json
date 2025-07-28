@@ -4,7 +4,7 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "npx serve -s build -p $PORT",
+    "startCommand": "npm run serve",
     "healthcheckPath": "/",
     "healthcheckTimeout": 100
   }
