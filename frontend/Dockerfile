@@ -2,17 +2,17 @@ FROM node:18-alpine AS build
 
 WORKDIR /app
 
-# Copy package files (Railway runs from frontend dir)
-COPY package*.json ./
+# Copy package files from frontend directory
+COPY frontend/package*.json ./
 RUN npm ci
 
-# Copy all files from current directory
-COPY . ./
+# Copy all frontend files
+COPY frontend/ ./
 RUN npm run build
 
 FROM nginx:alpine
 COPY --from=build /app/build /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/nginx.conf
+COPY frontend/nginx.conf /etc/nginx/nginx.conf
 
 EXPOSE 8080
 
