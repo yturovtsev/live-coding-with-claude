@@ -19,13 +19,14 @@ interface ConnectedUser {
 
 @WebSocketGateway({
   cors: {
-    origin: process.env.ALLOWED_ORIGINS?.split(',') ||
+    origin: process.env.ALLOWED_ORIGINS?.split(',').map(url => url.trim().replace(/\/$/, '')) ||
            (process.env.NODE_ENV === 'production' ?
-            process.env.FRONTEND_URL :
-            ['http://localhost:3000', 'http://127.0.0.1:3000']),
+            [process.env.FRONTEND_URL?.replace(/\/$/, ''), /https:\/\/.*\.railway\.app$/].filter(Boolean) :
+            ['http://localhost:3001', 'http://127.0.0.1:3001']),
     credentials: true,
     methods: ['GET', 'POST'],
   },
+  transports: ['websocket', 'polling'],
   namespace: '/ws'
 })
 export class CodeGateway implements OnGatewayConnection, OnGatewayDisconnect {
