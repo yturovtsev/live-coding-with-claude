@@ -21,9 +21,9 @@ async function bootstrap() {
     },
   });
 
-  const corsOrigins = process.env.ALLOWED_ORIGINS?.split(',') ||
+  const corsOrigins = process.env.ALLOWED_ORIGINS?.split(',').map(url => url.trim().replace(/\/$/, '')) ||
                    (process.env.NODE_ENV === 'production' ?
-                    [process.env.FRONTEND_URL, /https:\/\/.*\.railway\.app$/] :
+                    [process.env.FRONTEND_URL?.replace(/\/$/, ''), /https:\/\/.*\.railway\.app$/].filter(Boolean) :
                     ['http://localhost:3001', 'http://127.0.0.1:3001']);
 
   const port = process.env.PORT || 3000;
