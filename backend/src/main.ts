@@ -13,7 +13,7 @@ async function bootstrap() {
     cors: {
       origin: process.env.ALLOWED_ORIGINS?.split(',') ||
              (process.env.NODE_ENV === 'production' ?
-              [process.env.FRONTEND_URL, 'https://*.railway.app'] :
+              [process.env.FRONTEND_URL, /https:\/\/.*\.railway\.app$/] :
               ['http://localhost:3001', 'http://127.0.0.1:3001']),
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
