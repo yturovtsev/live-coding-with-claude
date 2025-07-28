@@ -26,7 +26,8 @@
     "web-vitals": "^2.1.4"
   },
   "scripts": {
-    "start": "GENERATE_SOURCEMAP=false PORT=3001 react-scripts start",
+    "start": "serve -s build -p ${PORT:-8080}",
+    "dev": "GENERATE_SOURCEMAP=false PORT=3001 react-scripts start", 
     "build": "react-scripts build",
     "serve": "serve -s build -p $PORT",
     "test": "react-scripts test",
